@@ -8,7 +8,7 @@ License: MIT
 module gl3n.util;
 
 private {
-    import gl3n.linalg : Vector, Matrix, Quaternion;
+    import gl3n.linalg : Vector, Matrix, Quaternion, AxisRotation;
     import gl3n.plane : PlaneT;
 
     static import std.compiler;
@@ -43,6 +43,13 @@ private void is_quaternion_impl(T)(Quaternion!(T) qu) {}
 /// If T is a quaternion, this evaluates to true, otherwise false.
 template is_quaternion(T) {
     enum is_quaternion = is(typeof(is_quaternion_impl(T.init)));
+}
+
+private void is_axis_rotation_impl(T)(AxisRotation!(T) qu) {}
+
+/// If T is a quaternion, this evaluates to true, otherwise false.
+template is_axis_rotation(T) {
+    enum is_axis_rotation = is(typeof(is_axis_rotation_impl(T.init)));
 }
 
 private void is_plane_impl(T)(PlaneT!(T) p) {}

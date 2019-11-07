@@ -2229,6 +2229,40 @@ struct Quaternion(type) {
         assert(almost_equal(q2.w, 0.7071067f));
     }
 
+    /// Creates a quaternion from a axis angle rotation.
+    /// Params:
+    ///  axisRot = axis angle rotation
+    /// Returns: A quaternion representing the rotation (axis angle)
+    static Quaternion from_axis_rotation(AxisRotation!(qt) axisRot) {
+        return axis_rotation(axisRot.a,axisRot.axis);
+    }
+
+    /// Returns the quaternion as axis angle rotation.
+    /// Params:
+    AxisRotation!qt to_axis_rotation() {
+        return AxisRotation!qt(angle,axis);
+    }
+
+    ////unittest {
+    ////    quat q1 = quat(4.0f, 1.0f, 2.0f, 3.0f);
+
+    ////    assert(q1.to_matrix!(3, 3).matrix == [[-25.0f, -20.0f, 22.0f], [28.0f, -19.0f, 4.0f], [-10.0f, 20.0f, -9.0f]]);
+    ////    assert(q1.to_matrix!(4, 4).matrix == [[-25.0f, -20.0f, 22.0f, 0.0f],
+    ////                                          [28.0f, -19.0f, 4.0f, 0.0f],
+    ////                                          [-10.0f, 20.0f, -9.0f, 0.0f],
+    ////                                          [0.0f, 0.0f, 0.0f, 1.0f]]);
+    ////    assert(quat.identity.to_matrix!(3, 3).matrix == Matrix!(qt, 3, 3).identity.matrix);
+    ////    assert(q1.quaternion == quat.from_matrix(q1.to_matrix!(3, 3)).quaternion);
+
+    ////    assert(quat(1.0f, 0.0f, 0.0f, 0.0f).quaternion == quat.from_matrix(mat3.identity).quaternion);
+
+    ////    quat q2 = quat.from_matrix(mat3(1.0f, 3.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    ////    assert(q2.x == 0.0f);
+    ////    assert(almost_equal(q2.y, 0.7071067f));
+    ////    assert(almost_equal(q2.z, -1.060660));
+    ////    assert(almost_equal(q2.w, 0.7071067f));
+    ////}
+
     /// Normalizes the current quaternion.
     void normalize() {
         qt m = to!qt(magnitude);
@@ -2269,18 +2303,48 @@ struct Quaternion(type) {
     }
 
     /// Returns the yaw.
-    @property real yaw() const {
+    @property qt yaw() const {
+        return atan2(2.0*(w*z + x*y), 1.0 - 2.0*(y*y + z*z));
+    }
+    /// ditto
+    @property real yaw_precise() const {
         return atan2(to!real(2.0*(w*z + x*y)), to!real(1.0 - 2.0*(y*y + z*z)));
     }
 
     /// Returns the pitch.
-    @property real pitch() const {
+    @property qt pitch() const {
+        return asin(2.0*(w*y - z*x));
+    }
+    /// ditto
+    @property real pitch_precise() const {
         return asin(to!real(2.0*(w*y - z*x)));
     }
 
     /// Returns the roll.
-    @property real roll() const {
+    @property qt roll() const {
+        return atan2(2.0*(w*x + y*z), 1.0 - 2.0*(x*x + y*y));
+    }
+    /// ditto
+    @property real roll_precise() const {
         return atan2(to!real(2.0*(w*x + y*z)), to!real(1.0 - 2.0*(x*x + y*y)));
+    }
+    
+    /// Returns axis angle rotation angle.
+    @property qt angle() const {
+        return 2 * acos(w);
+    }
+    /// ditto
+    @property real angle_precise() const {
+        return 2 * acos(to!real(w));
+    }
+    
+    /// Returns axis angle rotation axis.
+    @property Vector!(qt,3) axis() const {
+        return Vector!(qt,3)(x/(sqrt(1-w*w)),y/(sqrt(1-w*w)),z/(sqrt(1-w*w)));
+    }
+    /// ditto
+    @property Vector!(real,3) axis_recise() const {
+        return Vector!(real,3)(x.to!real/(sqrt(1-w.to!real*w.to!real)),y/(sqrt(1-w.to!real*w.to!real)),z.to!real/(sqrt(1-w.to!real*w.to!real)));
     }
 
     unittest {
@@ -2288,6 +2352,8 @@ struct Quaternion(type) {
         assert(q1.pitch == 0.0f);
         assert(q1.yaw == 0.0f);
         assert(q1.roll == 0.0f);
+        assert(q1.angle == 0.0f);
+        cast(void) q1.axis; // Does not mater if angle is 0
 
         quat q2 = quat(1.0f, 1.0f, 1.0f, 1.0f);
         assert(almost_equal(q2.yaw, q2.roll));
@@ -2594,3 +2660,511 @@ struct Quaternion(type) {
 
 /// Pre-defined quaternion of type float.
 alias Quaternion!(float) quat;
+ 
+/// Base template for all axis angle rotation-types.
+/// Params:
+///  type = all values get stored as this type
+struct AxisRotation(type) {
+	alias type art; /// Holds the internal type of the axis angle rotation.
+	
+	art[4] axisRotation; /// Holds the a, x, y and z coordinates.
+	
+	/// Returns a pointer to the axis angle rotation in memory, it starts with the a coordinate.
+	@property auto value_ptr() const { return axisRotation.ptr; }
+	
+	/// Returns the current vector formatted as string, useful for printing the axis angle rotations.
+	@property string as_string() {
+		return format("%s", axisRotation);
+	}
+	alias as_string toString;
+	
+	@safe pure nothrow:
+	private @property art get_(char coord)() const {
+		return axisRotation[coord_to_index!coord];
+	}
+	private @property void set_(char coord)(art value) {
+		axisRotation[coord_to_index!coord] = value;
+	}
+	
+	alias get_!'a' a; /// static properties to access the values.
+	alias set_!'a' a;
+	alias get_!'x' x; /// ditto
+	alias set_!'x' x;
+	alias get_!'y' y; /// ditto
+	alias set_!'y' y;
+	alias get_!'z' z; /// ditto
+	alias set_!'z' z;
+	
+	@safe pure nothrow:
+	@property Vector!(art,3) axis() const {
+		return Vector!(art,3)(x,y,z);
+	}
+	
+	/// Constructs the axis angle rotation.
+	/// Takes a 4-dimensional vector, where vector.x = the quaternions a coordinate,
+	/// or a a coordinate of type $(I art) and a 3-dimensional vector representing the imaginary part,
+	/// or 4 values of type $(I art).
+	this(art a_, art x_, art y_, art z_) {
+		a = a_;
+		x = x_;
+		y = y_;
+		z = z_;
+	}
+	
+	/// ditto
+	this(art a_, Vector!(art, 3) vec) {
+		a = a_;
+		axisRotation[1..4] = vec.vector[];
+	}
+	
+	/// ditto
+	this(Vector!(art, 3) vec, art a_) {
+		a = a_;
+		axisRotation[1..4] = vec.vector[];
+	}
+	
+	/// ditto
+	this(Vector!(art, 4) vec) {
+		axisRotation[] = vec.vector[];
+	}
+	
+	/// Returns true if all values are not nan and finite, otherwise false.
+	@property bool isFinite() const {
+		foreach(q; axisRotation) {
+			if(isNaN(q) || isInfinity(q)) {
+				return false;
+			}
+		}
+		return true;
+	}
+	deprecated("Use isFinite instead of ok") alias ok = isFinite;
+	
+	////unittest {
+	////	quat q1 = quat(0.0f, 0.0f, 0.0f, 1.0f);
+	////	assert(q1.axisRotation == [0.0f, 0.0f, 0.0f, 1.0f]);
+	////	assert(q1.axisRotation == quat(0.0f, 0.0f, 0.0f, 1.0f).axisRotation);
+	////	assert(q1.axisRotation == quat(0.0f, vec3(0.0f, 0.0f, 1.0f)).axisRotation);
+	////	assert(q1.axisRotation == quat(vec4(0.0f, 0.0f, 0.0f, 1.0f)).axisRotation);
+	////
+	////	assert(q1.isFinite);
+	////	q1.x = float.infinity;
+	////	assert(!q1.isFinite);
+	////	q1.x = float.nan;
+	////	assert(!q1.isFinite);
+	////	q1.x = 0.0f;
+	////	assert(q1.isFinite);
+	////}
+	
+	template coord_to_index(char c) {
+		static if(c == 'a') {
+			enum coord_to_index = 0;
+		} else static if(c == 'x') {
+			enum coord_to_index = 1;
+		} else static if(c == 'y') {
+			enum coord_to_index = 2;
+		} else static if(c == 'z') {
+			enum coord_to_index = 3;
+		} else {
+			static assert(false, "accepted coordinates are x, y, z and a not " ~ c ~ ".");
+		}
+	}
+	
+	/// Returns an identity axis angle rotation.
+	static @property AxisRotation identity() {
+		return AxisRotation(0, 0, 0, 0);
+	}
+	
+	/// Makes the current quaternion an identity quaternion.
+	void make_identity() {
+		a = 1;
+		x = 0;
+		y = 0;
+		z = 0;
+	}
+	
+	/// Inverts the axis angle rotation.
+	void invert() {
+		x = -x;
+		y = -y;
+		z = -z;
+	}
+	alias invert conjugate; /// ditto
+	
+	/// Returns an inverted copy of the current axis angle rotation.
+	@property AxisRotation inverse() const {
+		return AxisRotation(a, -x, -y, -z);
+	}
+	alias inverse conjugated; /// ditto
+	
+	
+	/////// Creates a axis angle rotation from a 3x3 matrix.
+	/////// Params:
+	///////  matrix = 3x3 matrix (rotation)
+	/////// Returns: A axis angle rotation representing the rotation (3x3 matrix)
+	////static AxisRotation from_matrix(Matrix!(art, 3, 3) matrix) {
+	////	
+	////}
+	
+	/////// Returns the axis angle rotation as matrix.
+	/////// Params:
+	///////  rows = number of rows of the resulting matrix (min 3)
+	///////  cols = number of columns of the resulting matrix (min 3)
+	////Matrix!(art, rows, cols) to_matrix(int rows, int cols)() const if((rows >= 3) && (cols >= 3)) {
+	////	static if((rows == 3) && (cols == 3)) {
+	////		Matrix!(art, rows, cols) ret;
+	////	} else {
+	////		Matrix!(art, rows, cols) ret = Matrix!(art, rows, cols).identity;
+	////	}
+	////	
+	////	art xx = x^^2;
+	////	art xy = x * y;
+	////	art xz = x * z;
+	////	art xw = x * a;
+	////	art yy = y^^2;
+	////	art yz = y * z;
+	////	art yw = y * a;
+	////	art zz = z^^2;
+	////	art zw = z * a;
+	////	
+	////	ret.matrix[0][0] = 1 - 2 * (yy + zz);
+	////	ret.matrix[0][1] = 2 * (xy - zw);
+	////	ret.matrix[0][2] = 2 * (xz + yw);
+	////	
+	////	ret.matrix[1][0] = 2 * (xy + zw);
+	////	ret.matrix[1][1] = 1 - 2 * (xx + zz);
+	////	ret.matrix[1][2] = 2 * (yz - xw);
+	////	
+	////	ret.matrix[2][0] = 2 * (xz - yw);
+	////	ret.matrix[2][1] = 2 * (yz + xw);
+	////	ret.matrix[2][2] = 1 - 2 * (xx + yy);
+	////	
+	////	return ret;
+	////}
+	
+	////unittest {
+	////	quat q1 = quat(4.0f, 1.0f, 2.0f, 3.0f);
+	////	
+	////	assert(q1.to_matrix!(3, 3).matrix == [[-25.0f, -20.0f, 22.0f], [28.0f, -19.0f, 4.0f], [-10.0f, 20.0f, -9.0f]]);
+	////	assert(q1.to_matrix!(4, 4).matrix == [[-25.0f, -20.0f, 22.0f, 0.0f],
+	////										  [28.0f, -19.0f, 4.0f, 0.0f],
+	////										  [-10.0f, 20.0f, -9.0f, 0.0f],
+	////										  [0.0f, 0.0f, 0.0f, 1.0f]]);
+	////	assert(quat.identity.to_matrix!(3, 3).matrix == Matrix!(art, 3, 3).identity.matrix);
+	////	assert(q1.axisRotation == quat.from_matrix(q1.to_matrix!(3, 3)).axisRotation);
+	////	
+	////	assert(quat(1.0f, 0.0f, 0.0f, 0.0f).axisRotation == quat.from_matrix(mat3.identity).axisRotation);
+	////	
+	////	quat q2 = quat.from_matrix(mat3(1.0f, 3.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+	////	assert(q2.x == 0.0f);
+	////	assert(almost_equal(q2.y, 0.7071067f));
+	////	assert(almost_equal(q2.z, -1.060660));
+	////	assert(almost_equal(q2.a, 0.7071067f));
+	////}
+		
+	/// Normalizes the current axis angle rotation.
+	/// Returns a normalized copy of the current axis angle rotation.
+	////AxisRotation normalized() const {
+	////	AxisRotation ret;
+	////	art m = to!art(magnitude);
+	////	
+	////	if(m != 0) {
+	////		ret.a = a / m;
+	////		ret.x = x / m;
+	////		ret.y = y / m;
+	////		ret.z = z / m;
+	////	} else {
+	////		ret = AxisRotation(a, x, y, z);
+	////	}
+	////	
+	////	return ret;
+	////}
+	////
+	////unittest {
+	////	quat q1 = quat(1.0f, 2.0f, 3.0f, 4.0f);
+	////	quat q2 = quat(1.0f, 2.0f, 3.0f, 4.0f);
+	////	
+	////	q1.normalize();
+	////	assert(q1.axisRotation == q2.normalized.axisRotation);
+	////	//assert(q1.axisRotation == q1.normalized.axisRotation);
+	////	assert(almost_equal(q1.magnitude, 1.0));
+	////}
+	
+	/////// Returns the yaw.
+	////@property real yaw() const {
+	////	return atan2(to!real(2.0*(a*z + x*y)), to!real(1.0 - 2.0*(y*y + z*z)));
+	////}
+	////
+	/////// Returns the pitch.
+	////@property real pitch() const {
+	////	return asin(to!real(2.0*(a*y - z*x)));
+	////}
+	////
+	/////// Returns the roll.
+	////@property real roll() const {
+	////	return atan2(to!real(2.0*(a*x + y*z)), to!real(1.0 - 2.0*(x*x + y*y)));
+	////}
+	////
+	////unittest {
+	////	quat q1 = quat.identity;
+	////	assert(q1.pitch == 0.0f);
+	////	assert(q1.yaw == 0.0f);
+	////	assert(q1.roll == 0.0f);
+	////	
+	////	quat q2 = quat(1.0f, 1.0f, 1.0f, 1.0f);
+	////	assert(almost_equal(q2.yaw, q2.roll));
+	////	//assert(almost_equal(q2.yaw, 1.570796f));
+	////	assert(q2.pitch == 0.0f);
+	////	
+	////	quat q3 = quat(0.1f, 1.9f, 2.1f, 1.3f);
+	////	//assert(almost_equal(q3.yaw, 2.4382f));
+	////	assert(isNaN(q3.pitch));
+	////	//assert(almost_equal(q3.roll, 1.67719f));
+	////}
+	
+	/// Returns a axis angle rotation with applied rotation around the x-axis.
+	static AxisRotation xrotation(art alpha) {
+		return AxisRotation(alpha, 1,0,0);
+	}
+	
+	/// Returns a axis angle rotation with applied rotation around the y-axis.
+	static AxisRotation yrotation(art alpha) {
+		return AxisRotation(alpha, 0,1,0);
+	}
+	
+	/// Returns a axis angle rotation with applied rotation around the z-axis.
+	static AxisRotation zrotation(art alpha) {
+		return AxisRotation(alpha, 0,0,1);
+	}
+	
+	/// Returns a axis angle rotation with applied rotation around an axis.
+	static AxisRotation axis_rotation(art alpha, Vector!(art, 3) axis) {
+		return AxisRotation(alpha, axis);
+	}
+	
+	/////// Creates a axis angle rotation from an euler rotation.
+	////static AxisRotation euler_rotation(real roll, real pitch, real yaw) {
+	////	AxisRotation ret;
+	////	
+	////	auto cr = cos(roll / 2.0);
+	////	auto cp = cos(pitch / 2.0);
+	////	auto cy = cos(yaw / 2.0);
+	////	auto sr = sin(roll / 2.0);
+	////	auto sp = sin(pitch / 2.0);
+	////	auto sy = sin(yaw / 2.0);
+	////	
+	////	ret.a = cr * cp * cy + sr * sp * sy;
+	////	ret.x = sr * cp * cy - cr * sp * sy;
+	////	ret.y = cr * sp * cy + sr * cp * sy;
+	////	ret.z = cr * cp * sy - sr * sp * cy;
+	////	
+	////	return ret;
+	////}
+	
+	////unittest {
+	////	enum startPitch = 0.1;
+	////	enum startYaw = -0.2;
+	////	enum startRoll = 0.6;
+	////	
+	////	auto q = quat.euler_rotation(startRoll,startPitch,startYaw);
+	////	
+	////	assert(almost_equal(q.pitch,startPitch));
+	////	assert(almost_equal(q.yaw,startYaw));
+	////	assert(almost_equal(q.roll,startRoll));
+	////}
+	
+	/////// Rotates the current axis angle rotation around the x-axis and returns $(I this).
+	////AxisRotation rotatex(real alpha) {
+	////	this = xrotation(alpha) * this;
+	////	return this;
+	////}
+	////
+	/////// Rotates the current axis angle rotation around the y-axis and returns $(I this).
+	////AxisRotation rotatey(real alpha) {
+	////	this = yrotation(alpha) * this;
+	////	return this;
+	////}
+	////
+	/////// Rotates the current axis angle rotation around the z-axis and returns $(I this).
+	////AxisRotation rotatez(real alpha) {
+	////	this = zrotation(alpha) * this;
+	////	return this;
+	////}
+	////
+	/////// Rotates the current axis angle rotation around an axis and returns $(I this).
+	////AxisRotation rotate_axis(real alpha, Vector!(art, 3) axis) {
+	////	this = axis_rotation(alpha, axis) * this;
+	////	return this;
+	////}
+	////
+	/////// Applies an euler rotation to the current axis angle rotation and returns $(I this).
+	////AxisRotation rotate_euler(real heading, real attitude, real bank) {
+	////	this = euler_rotation(heading, attitude, bank) * this;
+	////	return this;
+	////}
+	////
+	////unittest {
+	////	assert(quat.xrotation(PI).axisRotation[1..4] == [1.0f, 0.0f, 0.0f]);
+	////	assert(quat.yrotation(PI).axisRotation[1..4] == [0.0f, 1.0f, 0.0f]);
+	////	assert(quat.zrotation(PI).axisRotation[1..4] == [0.0f, 0.0f, 1.0f]);
+	////	assert((quat.xrotation(PI).a == quat.yrotation(PI).a) && (quat.yrotation(PI).a == quat.zrotation(PI).a));
+	////	//assert(quat.rotatex(PI).a == to!(quat.art)(cos(PI)));
+	////	assert(quat.xrotation(PI).axisRotation == quat.identity.rotatex(PI).axisRotation);
+	////	assert(quat.yrotation(PI).axisRotation == quat.identity.rotatey(PI).axisRotation);
+	////	assert(quat.zrotation(PI).axisRotation == quat.identity.rotatez(PI).axisRotation);
+	////	
+	////	assert(quat.axis_rotation(PI, vec3(1.0f, 1.0f, 1.0f)).axisRotation[1..4] == [1.0f, 1.0f, 1.0f]);
+	////	assert(quat.axis_rotation(PI, vec3(1.0f, 1.0f, 1.0f)).a == quat.xrotation(PI).a);
+	////	assert(quat.axis_rotation(PI, vec3(1.0f, 1.0f, 1.0f)).axisRotation ==
+	////		   quat.identity.rotate_axis(PI, vec3(1.0f, 1.0f, 1.0f)).axisRotation);
+	////	
+	////	quat q1 = quat.euler_rotation(PI, PI, PI);
+	////	assert((q1.x > -1e-16) && (q1.x < 1e-16));
+	////	assert((q1.y > -1e-16) && (q1.y < 1e-16));
+	////	assert((q1.z > -1e-16) && (q1.z < 1e-16));
+	////	//assert(q1.a == -1.0f);
+	////	assert(quat.euler_rotation(PI, PI, PI).axisRotation == quat.identity.rotate_euler(PI, PI, PI).axisRotation);
+	////}
+	
+	AxisRotation opBinary(string op : "*")(AxisRotation inp) const {
+		//TODO: This is a temporary implementation.
+		return (Quaternion!art.from_axis_rotation(this) * Quaternion!art.from_axis_rotation(inp)).to_axis_rotation;
+	}
+	
+	Quaternion!art opBinary(string op : "*")(Quaternion!art inp) const {
+		return Quaternion!art.axis_rotation(a,axis) * inp;
+	}
+	Quaternion!art opBinaryRight(string op : "*")(Quaternion!art inp) const {
+		return inp * Quaternion!art.axis_rotation(a,axis);
+	}
+	
+	Vector!(art,3) opBinary(string op : "*")(Vector!(art,3) inp) const {
+		return Quaternion!art.axis_rotation(a,axis) * inp;
+	}
+	Vector!(art,3) opBinaryRight(string op : "*")(Vector!(art,3) inp) const {
+		return inp * Quaternion!art.axis_rotation(a,axis);
+	}
+	
+	
+	////Vector!(art, 3) opBinary(string op : "*")(Vector!(art, 3) inp) const {
+	////	Vector!(art, 3) ret;
+	////	
+	////	art ww = a^^2;
+	////	art w2 = a * 2;
+	////	art wx2 = w2 * x;
+	////	art wy2 = w2 * y;
+	////	art wz2 = w2 * z;
+	////	art xx = x^^2;
+	////	art x2 = x * 2;
+	////	art xy2 = x2 * y;
+	////	art xz2 = x2 * z;
+	////	art yy = y^^2;
+	////	art yz2 = 2 * y * z;
+	////	art zz = z * z;
+	////	
+	////	ret.vector =  [ww * inp.x + wy2 * inp.z - wz2 * inp.y + xx * inp.x +
+	////				   xy2 * inp.y + xz2 * inp.z - zz * inp.x - yy * inp.x,
+	////				   xy2 * inp.x + yy * inp.y + yz2 * inp.z + wz2 * inp.x -
+	////				   zz * inp.y + ww * inp.y - wx2 * inp.z - xx * inp.y,
+	////				   xz2 * inp.x + yz2 * inp.y + zz * inp.z - wy2 * inp.x -
+	////				   yy * inp.z + wx2 * inp.y - xx * inp.z + ww * inp.z];
+	////	
+	////	return ret;
+	////}
+	
+	AxisRotation opBinary(string op : "*")(art inp) const {
+		return AxisRotation(a*inp, x, y, z);
+	}
+	
+	////void opOpAssign(string op : "*")(AxisRotation inp) {
+	////	art w2 = -x * inp.x - y * inp.y - z * inp.z + a * inp.a;
+	////	art x2 = x * inp.a + y * inp.z - z * inp.y + a * inp.x;
+	////	art y2 = -x * inp.z + y * inp.a + z * inp.x + a * inp.y;
+	////	art z2 = x * inp.y - y * inp.x + z * inp.a + a * inp.z;
+	////	a = w2; x = x2; y = y2; z = z2;
+	////}
+	////
+	////void opOpAssign(string op : "*")(art inp) {
+	////	axisRotation[0] *= inp;
+	////	axisRotation[1] *= inp;
+	////	axisRotation[2] *= inp;
+	////	axisRotation[3] *= inp;
+	////}
+	
+	////unittest {
+	////	quat q1 = quat.identity;
+	////	quat q2 = quat(3.0f, 0.0f, 1.0f, 2.0f);
+	////	quat q3 = quat(3.4f, 0.1f, 1.2f, 2.3f);
+	////	
+	////	assert((q1 * q1).axisRotation == q1.axisRotation);
+	////	assert((q1 * q2).axisRotation == q2.axisRotation);
+	////	assert((q2 * q1).axisRotation == q2.axisRotation);
+	////	quat q4 = q3 * q2;
+	////	assert((q2 * q3).axisRotation != q4.axisRotation);
+	////	q3 *= q2;
+	////	assert(q4.axisRotation == q3.axisRotation);
+	////	assert(almost_equal(q4.x, 0.4f));
+	////	assert(almost_equal(q4.y, 6.8f));
+	////	assert(almost_equal(q4.z, 13.8f));
+	////	assert(almost_equal(q4.a, 4.4f));
+	////	
+	////	quat q5 = quat(1.0f, 2.0f, 3.0f, 4.0f);
+	////	quat q6 = quat(3.0f, 1.0f, 6.0f, 2.0f);
+	////	
+	////	assert((q5 - q6).axisRotation == [-2.0f, 1.0f, -3.0f, 2.0f]);
+	////	assert((q5 + q6).axisRotation == [4.0f, 3.0f, 9.0f, 6.0f]);
+	////	assert((q6 - q5).axisRotation == [2.0f, -1.0f, 3.0f, -2.0f]);
+	////	assert((q6 + q5).axisRotation == [4.0f, 3.0f, 9.0f, 6.0f]);
+	////	q5 += q6;
+	////	assert(q5.axisRotation == [4.0f, 3.0f, 9.0f, 6.0f]);
+	////	q6 -= q6;
+	////	assert(q6.axisRotation == [0.0f, 0.0f, 0.0f, 0.0f]);
+	////	
+	////	quat q7 = quat(2.0f, 2.0f, 2.0f, 2.0f);
+	////	assert((q7 * 2).axisRotation == [4.0f, 4.0f, 4.0f, 4.0f]);
+	////	assert((2 * q7).axisRotation == (q7 * 2).axisRotation);
+	////	q7 *= 2;
+	////	assert(q7.axisRotation == [4.0f, 4.0f, 4.0f, 4.0f]);
+	////	
+	////	vec3 v1 = vec3(1.0f, 2.0f, 3.0f);
+	////	assert((q1 * v1).vector == v1.vector);
+	////	assert((v1 * q1).vector == (q1 * v1).vector);
+	////	assert((q2 * v1).vector == [-2.0f, 36.0f, 38.0f]);
+	////}
+	////
+	////int opCmp(ref const AxisRotation qua) const {
+	////	foreach(i, a; axisRotation) {
+	////		if(a < qua.axisRotation[i]) {
+	////			return -1;
+	////		} else if(a > qua.axisRotation[i]) {
+	////			return 1;
+	////		}
+	////	}
+	////	
+	////	// Quaternions are the same
+	////	return 0;
+	////}
+	////
+	////bool opEquals(const AxisRotation qu) const {
+	////	return axisRotation == qu.axisRotation;
+	////}
+	
+	bool opCast(T : bool)() const  {
+		return isFinite;
+	}
+	
+	////unittest {
+	////	assert(quat(1.0f, 2.0f, 3.0f, 4.0f) == quat(1.0f, 2.0f, 3.0f, 4.0f));
+	////	assert(quat(1.0f, 2.0f, 3.0f, 4.0f) != quat(1.0f, 2.0f, 3.0f, 3.0f));
+	////
+	////	assert(!(quat(float.nan, float.nan, float.nan, float.nan)));
+	////	if(quat(1.0f, 1.0f, 1.0f, 1.0f)) { }
+	////	else { assert(false); }
+	////}
+	
+}
+
+/// Pre-defined axis angle rotation of type float.
+alias AxisRotation!(float) axisRotation;
+
+
+
